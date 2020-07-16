@@ -29,7 +29,7 @@ In heppy_Plot.cpp :
   - Stacked_histo_Fit() takes all MC files as input and compute a fit letting QCD free.
   - Stacked_histo() plot the DATA/MC agreement taking the fraction 0.X returned by TFractionFitter that is promped when running Stacked_histo_Fit().
   
-  - Stacked_histo_reversed() and Stacked histo_reversed_fit() are similar to Stacked_histo() and Stacked_histo_Fit() but take the estimated QCD background.
+  - Stacked_histo_reversed() and Stacked histo_reversed_fit() are similar to Stacked_histo() and Stacked_histo_Fit() but take the estimated QCD background as input.
   - ATGCRoot() makes the files ATGC files with data and background.
   
   
