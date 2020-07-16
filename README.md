@@ -1,16 +1,25 @@
 # code_for_EFT_analysis
 
 Creat the following directories :
+
 /data/
+
 /data/madgraph/
+
 /data/madgraph/output/
+
 /data/heppy/
+
 /data/heppy/output/
 
 /results/
+
 /results/heppy/
+
 /results/heppy/ratio_madgraph/
+
 /results/heppy/top_reco/
+
 /results/heppy/top_reco/ATCGRoot/
 
 Put the rootfiles in the data directory : madgraph files in the madgraph directory and heppy files in the heppy directory.
