@@ -60,7 +60,7 @@ TH1D* GetHistoWeight(TTree* t, string variable, int nbins, double xmin, double x
 }
 
 double normalizeWithChi(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* t5, TTree* t6, TTree* t7, TTree* t8, TTree* t9, TTree* t10, TTree* t11, TTree* t12,
-   string variable, int nbins, double xmin, double xmax, string selection, double param0_elec, double param1_elec, double param0_muon, double param1_muon, double syst_lumi, double syst_singletop, double syst_ttbar_tw, double syst_w_z_gamma, double syst_QCD, string signal, string legendX, string legendY)
+   string variable, int nbins, double xmin, double xmax, string selection, double param0_elec, double param1_elec, double param0_muon, double param1_muon, double syst_lumi, double syst_singletop, double syst_ttbar_tw, double syst_w_z_gamma, double syst_QCD, string signal, string legendX, string legendY, string Name, string region)
 {
 
   double lumi = 41500;
@@ -134,6 +134,7 @@ double normalizeWithChi(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* t5, 
   TH1D *w_z_gamma_elec = new TH1D ("stack w_z_gamma", "", nbins, xmin, xmax );
   TH1D *all_others_elec = new TH1D ("all_others", "", nbins, xmin, xmax );
   TH1D *ASIMOV_elec = new TH1D ("ASIMOV", "", nbins, xmin, xmax );
+  TH1D *EFT_signal = new TH1D ("EFT_signal", "", nbins, xmin, xmax );
 
   TH1D *singletop_muon = new TH1D ("stack single top", "", nbins, xmin, xmax );
   TH1D *ttbar_tw_muon= new TH1D ("stack ttbar_tw", "", nbins, xmin, xmax );
@@ -141,6 +142,8 @@ double normalizeWithChi(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* t5, 
   TH1D *w_z_gamma_muon = new TH1D ("stack w_z_gamma", "", nbins, xmin, xmax );
   TH1D *all_others_muon = new TH1D ("all_others", "", nbins, xmin, xmax );
   TH1D *ASIMOV_muon = new TH1D ("ASIMOV", "", nbins, xmin, xmax );
+
+
 
   singletop_elec->Add(Histo_1_elec);
   singletop_elec->Add(Histo_2_elec);
@@ -170,13 +173,14 @@ double normalizeWithChi(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* t5, 
   all_others_muon->Add(ttbar_tw_muon);
   all_others_muon->Add(w_z_gamma_muon);
 
-  double integ_all_others_elec = all_others_elec->Integral(1,20);
-  double integ_QCD_elec = QCD_elec->Integral(1,20);
-  double integ_data_elec = DATA_elec->Integral(1,20);
 
-  double integ_all_others_muon = all_others_muon->Integral(1,20);
-  double integ_QCD_muon = QCD_muon->Integral(1,20);
-  double integ_data_muon = DATA_muon->Integral(1,20);
+  double integ_all_others_elec = all_others_elec->Integral(1,nbins);
+  double integ_QCD_elec = QCD_elec->Integral(1,nbins);
+  double integ_data_elec = DATA_elec->Integral(1,nbins);
+
+  double integ_all_others_muon = all_others_muon->Integral(1,nbins);
+  double integ_QCD_muon = QCD_muon->Integral(1,nbins);
+  double integ_data_muon = DATA_muon->Integral(1,nbins);
 
   double newscale0_elec = integ_data_elec*param0_elec/integ_all_others_elec;
   double newscale1_elec = integ_data_elec*param1_elec/integ_QCD_elec;
@@ -217,22 +221,132 @@ double normalizeWithChi(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* t5, 
 
   for(int i = 1 ; i <= nbins; i++)
   {
-
     ratio_elec[i-1] = (TF1*)EFT_file_elec->Get(("bin_content_par1_"+to_string(i)).c_str());
 
     EFT_histo_elec[i-1] = (TH1D*)ratio_elec[i-1]->CreateHistogram();
 
     ratio_muon[i-1] = (TF1*)EFT_file_muon->Get(("bin_content_par1_"+to_string(i)).c_str());
     EFT_histo_muon[i-1] = (TH1D*)ratio_muon[i-1]->CreateHistogram();
-
-
   }
+
+  for (int p = 1; p <= nbins ; p++)
+    {
+      EFT_signal->SetBinContent(p, singletop_elec->GetBinContent(p)*ratio_elec[p-1]->Eval(2.0));
+    }
+
+  double error_Wjets_tot[nbins];
+  double error_ttbar_tw_tot[nbins];
+  double error_tchan_tot[nbins];
+  double error_multijet_tot[nbins];
+
+    for (int i = 0 ; i< nbins ; i++)
+    {
+
+      error_Wjets_tot[i] = sqrt(pow(3200,2) + pow(2800,2))/(33400+30700)*w_z_gamma_elec->GetBinContent(i+1);
+      error_ttbar_tw_tot[i] = sqrt(pow(1400,2)+ pow(1500,2))/(84500+84800)*ttbar_tw_elec->GetBinContent(i+1);
+      error_tchan_tot[i] = sqrt(pow(820,2)+pow(880,2)+pow(3,2)+pow(2,2))/(17720+27+25+11460)*singletop_elec->GetBinContent(i+1);
+      error_multijet_tot[i] = 0.2*QCD_elec->GetBinContent(i+1);
+
+    }
+
+  TH1D *all_error_up = new TH1D("error_up","error_up",nbins,xmin,xmax);
+  TH1D *all_histo = new TH1D ("multijet", "multijet", nbins, xmin, xmax );
+  TH1D *all_m1_histo = new TH1D ("w_z_gamma", "w_z_gamma", nbins, xmin, xmax );
+  TH1D *all_m2_histo = new TH1D ("ttbar_tw", "ttbar_tw", nbins, xmin, xmax );
+  TH1D *all_m3_histo = new TH1D ("singletop", "singletop", nbins, xmin, xmax );
+
+  all_histo->Add(singletop_elec);
+  all_histo->Add(ttbar_tw_elec);
+  all_histo->Add(w_z_gamma_elec);
+  all_histo->Add(QCD_elec);
+
+  all_m1_histo->Add(singletop_elec);
+  all_m1_histo->Add(ttbar_tw_elec);
+  all_m1_histo->Add(w_z_gamma_elec);
+
+  all_m2_histo->Add(singletop_elec);
+  all_m2_histo->Add(ttbar_tw_elec);
+
+  all_m3_histo->Add(singletop_elec);
+
+  all_histo->SetLineColor(kBlack);
+  all_histo->SetFillColor(kGray);
+
+  all_m1_histo->SetLineColor(kBlack);
+  all_m1_histo->SetFillColor(8);
+
+  all_m2_histo->SetLineColor(kBlack);
+  all_m2_histo->SetFillColor(kOrange);
+
+  all_m3_histo->SetLineColor(kBlack);
+  all_m3_histo->SetFillColor(kRed);
+
+  DATA_elec->SetLineWidth(2);
+  DATA_elec->SetLineColor(kBlack);
+
+  EFT_signal->SetLineWidth(3);
+  EFT_signal->SetLineColor(kBlue);
+
+  all_error_up->SetFillStyle(3005);
+  all_error_up->SetFillColor(kBlack);
+  all_error_up->SetMarkerStyle(0);
+
+  for (int i = 0 ; i<nbins ; i++)
+  {
+    all_error_up->SetBinContent(i+1, all_histo->GetBinContent(i+1));
+    all_error_up->SetBinError(i+1,sqrt( pow(error_Wjets_tot[i],2) + pow(error_ttbar_tw_tot[i],2) + pow(error_tchan_tot[i],2) +pow(error_multijet_tot[i],2)));
+  }
+
+  all_histo->SetXTitle(legendX.c_str());
+  all_histo->SetYTitle(legendY.c_str());
+
+  double max = all_histo->GetMaximum();
+  all_histo->SetAxisRange(0,max*1.8,"Y");
+
+  all_histo->Draw("HIST");
+  all_error_up->Draw("E2 SAME");
+  all_m1_histo->Draw("SAME HIST");
+  all_m2_histo->Draw("SAME HIST");
+  all_m3_histo->Draw("SAME HIST");
+  EFT_signal->Draw("SAME");
+  DATA_elec->Draw("E SAME");
+
+  string legendtitle1 = region+" Region";
+  float lx0 = 0.65;
+  float ly0 = 0.65;
+  float lx1 = 0.99;
+  float ly1 = 0.99;
+
+  TLegend* legend = new TLegend(lx0, ly0, lx1, ly1, legendtitle1.c_str());
+  string legendEntry1 = "DATA";
+  string legendEntry2 = "Multijet (DATA)";
+  string legendEntry3 = "W/Z/#gamma* + jets";
+  string legendEntry4 = "t#bar{t}/tw";
+  string legendEntry5 = "Single top t-channel";
+  string legendEntry6 = "C_{tW}^{I} = 2";
+
+
+
+  legend->SetFillColor(kWhite);
+  legend->AddEntry(DATA_elec->GetName(), legendEntry1.c_str(), "l");
+  legend->AddEntry(all_histo->GetName(), legendEntry2.c_str(), "f");
+  legend->AddEntry(all_m1_histo->GetName(), legendEntry3.c_str(), "f");
+  legend->AddEntry(all_m2_histo->GetName(), legendEntry4.c_str(), "f");
+  legend->AddEntry(all_m3_histo->GetName(), legendEntry5.c_str(), "f");
+  legend->AddEntry(EFT_signal->GetName(), legendEntry6.c_str(), "l");
+  legend->Draw("SAME");
+
+  Canvas->Print(Name.c_str());
 
 
   double EFTmax = 3;
   double pas = EFTmax*2/EFT_histo_elec[0]->GetNbinsX();
 
   TH1D* chiCarre = new TH1D ("Chi Carre", "" , EFT_histo_elec[0]->GetNbinsX(), -EFTmax, EFTmax);
+
+
+
+
 
   for (int factor = 1 ; factor <= EFT_histo_elec[0]->GetNbinsX() ; factor++)
     {
@@ -245,7 +359,7 @@ double normalizeWithChi(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* t5, 
           normalisation_muon += pow(ASIMOV_muon->GetBinContent(p) - (syst_lumi*(EFT_histo_muon[p-1]->GetBinContent(factor)*singletop_muon->GetBinContent(p)*syst_singletop + ttbar_tw_muon->GetBinContent(p)*syst_ttbar_tw + w_z_gamma_muon->GetBinContent(p)*syst_w_z_gamma)+ QCD_muon->GetBinContent(p)*syst_QCD),2)
         /(ASIMOV_muon->GetBinContent(p));
         }
-      chiCarre->SetBinContent(factor, (normalisation_elec)/nbins);
+      chiCarre->SetBinContent(factor, (normalisation_elec+normalisation_muon)/nbins);
     }
 
 double minimum_chicarre = chiCarre->GetMinimum();
@@ -255,8 +369,11 @@ for (int factor = 1 ; factor <= EFT_histo_elec[0]->GetNbinsX() ; factor++)
     chiCarre->SetBinContent(factor,current_value-minimum_chicarre);
   }
 
+  chiCarre->SetXTitle("C_{tW}^{I}");
+  chiCarre->SetYTitle("#\chi^{2}");
+
   chiCarre->Draw();
-  Canvas->Print("test.pdf");
+  Canvas->Print("chi_carre.pdf");
 
 double bin_left = 99;
 double bin_right = 99;
@@ -882,7 +999,7 @@ void Stacked_histo(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* t5, TTree
   legend->AddEntry(all_m1_histo->GetName(), legendEntry3.c_str(), "f");
   legend->AddEntry(all_m2_histo->GetName(), legendEntry4.c_str(), "f");
   legend->AddEntry(all_m3_histo->GetName(), legendEntry5.c_str(), "f");
-  //legend->Draw("SAME");
+    legend->Draw("SAME");
 
   Canvas->Print(Name.c_str());
 }
@@ -1284,9 +1401,9 @@ void Stacked_histo_reversed(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* 
   all_others->Add(singletop);
   all_others->Add(ttbar_tw);
   all_others->Add(w_z_gamma);
-  double integ_all_others = all_others->Integral(1,20);
-  double integ_QCD = QCD->Integral(1,20);
-  double integ_data = DATA->Integral(1,20);
+  double integ_all_others = all_others->Integral(1,nbins);
+  double integ_QCD = QCD->Integral(1,nbins);
+  double integ_data = DATA->Integral(1,nbins);
 
   double constrain1 = integ_all_others/integ_data;
 
@@ -1296,6 +1413,7 @@ void Stacked_histo_reversed(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* 
   cout<<"integral DATA ="<<integ_data<<endl;
 
   TCanvas* Canvas = new TCanvas("Canvas","Canvas");
+
 
   double newscale0 = integ_data*param0/integ_all_others;
   double newscale1 = integ_data*param1/integ_QCD;
@@ -1660,7 +1778,7 @@ void Stacked_histo_reversed_Fit(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTr
   Canvas->Print(Name.c_str());
 
 }
-void ATCGRoot(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* t5, TTree* t6, TTree* t7, TTree* t8, TTree* t9, TTree* t10, TTree* t11,
+void ATGCRoot(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* t5, TTree* t6, TTree* t7, TTree* t8, TTree* t9, TTree* t10, TTree* t11,
    string variable, int nbins, double xmin, double xmax, string selection, double param0, double param1, string lepton, string name_file_variable , string EFT){
 
   double lumi = 41500;
@@ -1767,7 +1885,7 @@ void ATCGRoot(TTree* t1, TTree* t2, TTree* t3, TTree* t4 , TTree* t5, TTree* t6,
   all_histo->Add(w_z_gamma);
   all_histo->Add(QCD);
 
-  string root_name = "./results/heppy/top_reco/ATCGRoot/"+name_file_variable+"_"+EFT+".root";
+  string root_name = "./results/heppy/top_reco/ATGCRoot/"+name_file_variable+"_"+EFT+".root";
 
     TFile* file_histo = new TFile(root_name.c_str(),"RECREATE");
 
@@ -2128,7 +2246,7 @@ suffix[28] = "DATA_QCD";*/
 , tInput[18], tInput[19], tInput[20], tInput[21], tInput[22], tInput[23], tInput[24], tInput[25], tInput[26], tInput[27], tInput[28], "final_mtw", 20, 0, 300, "final_natureLepton == 2 && final_region==0", "M_{t,W} electron", "number of events", "legendUpRight", "DATA/MC","results/heppy/DATA_MC_mtw_muon.pdf");
 Stacked_histo(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[9], tInput[10], tInput[11], tInput[12], tInput[13], tInput[14], tInput[15]
 , tInput[18], tInput[19], tInput[20], tInput[21], tInput[22], tInput[23], tInput[24], tInput[25], tInput[26], tInput[27], tInput[28], "final_elec_pt", 15, 0, 200, "final_natureLepton==1 && final_region==1", "p_{T} electron (GeV)", "number of events", "legendUpRight", "DATA/MC","results/heppy/DATA_MC_pt_elec.pdf",1,1,"signal");
-Stacked_histo(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[9], tInput[10], tInput[11], tInput[12], tInput[13], tInput[14], tInput[15]
+/*Stacked_histo(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[9], tInput[10], tInput[11], tInput[12], tInput[13], tInput[14], tInput[15]
 , tInput[18], tInput[19], tInput[20], tInput[21], tInput[22], tInput[23], tInput[24], tInput[25], tInput[26], tInput[27], tInput[28], "final_elec_eta", 20, 0, 4, "final_region==1 && final_natureLepton==1", "|#eta| electron", "number of events", "legendUpRight", "DATA/MC","results/heppy/DATA_MC_eta_elec.pdf");
 
 Stacked_histo(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[9], tInput[10], tInput[11], tInput[12], tInput[13], tInput[14], tInput[15]
@@ -2215,7 +2333,7 @@ tInput[28], "boosted_reco_top_mass", 20, 0, 500, "final_natureLepton == 1 && fin
 
 Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[29],
 tInput[28], "final_elec_pt", 15, 0, 200, "final_natureLepton==1 && final_region==1", "p_{T} electron (GeV)", "number of events", "legendUpRight", "DATA/MC","results/heppy/DATA_MC_pt_elec_postfit.pdf",  0.800042, 0.202856, "elec", "Signal");
-
+/*
 Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[29],
 tInput[28], "Delta_R", 10, 0, 6, "final_natureLepton==1 && final_region==1", "#DeltaR", "number of events", "legendUpRight", "DATA/MC","results/heppy/DATA_MC_Delta_R_elec_region1_postfit.pdf",  0.800042, 0.201963, "elec", "Signal ");
 
@@ -2226,10 +2344,10 @@ tInput[28], "final_jet2_eta", 10, -5, 5, "final_natureLepton==1 && final_region=
 
 /*
 
-ATCGRoot(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[29],
+ATGCRoot(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[29],
 tInput[28], "boosted_reco_cosTheta", 20, -1, 1, "final_natureLepton == 1 && final_region==1 && boosted_reco_cosTheta <=1 ", 0.800042, 0.201963, "elec", "cosTheta", "ctwi");
 
-ATCGRoot(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[29],
+ATGCRoot(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[29],
 tInput[28], "boosted_reco_PhiStar", 5,  0, 6.2831, "final_natureLepton == 1 && final_region==1 ", 0.800042, 0.201963, "elec", "PhiStar", "ctwi");
 
 //---------------------------------variable with muons--------------------//*/
@@ -2242,7 +2360,7 @@ Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tI
 tInput[28], "jet_not_b_eta", 20, -5, 5, "final_natureLepton == 2 && final_region==1 ", "#eta", "number of events", "legendUpRight", "DATA/MC","results/heppy/top_reco/DATA_MC_not_b_eta_muon_region1_postFit.pdf", 0.741288,0.263463, "muon", "Signal");
 Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[30],
 tInput[28], "M_T_top", 20, 0, 400, "final_natureLepton == 2 && final_region==2 ", "M_{top,T} (GeV)", "number of events", "legendUpRight", "DATA/MC","results/heppy/top_reco/DATA_MC_mt_top_muon_region2_postFit.pdf", 0.741288,0.263463, "muon", "ttbar");
-*/Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[30],
+Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[30],
 tInput[28], "M_T_tot", 20, 0, 140, "final_natureLepton == 2 && final_region==2 ", "M_{tot,T} (GeV)", "number of events", "legendUpRight", "DATA/MC","results/heppy/top_reco/DATA_MC_mt_tot_muon_region2_postFit.pdf", 0.741288,0.263463, "muon", "ttbar");
 /*Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[30],
 tInput[28], "Delta_R", 10, 0, 6, "final_natureLepton == 2 && final_region==1 ", "#DeltaR", "number of events", "legendUpRight", "DATA/MC","results/heppy/DATA_MC_Delta_R_muon_region1_postFit.pdf", 0.741288,0.263463, "muon", "Signal region");
@@ -2268,9 +2386,9 @@ tInput[28], "boosted_reco_PhiStar", 20, 0, 6.2831, "final_natureLepton == 2 && f
 Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[30],
 tInput[28], "boosted_reco_cosThetaStar", 20, -1, 1, "final_natureLepton == 2 && final_region==1 && boosted_reco_cosThetaStar <=1 ", "cos(#theta^{*})", "number of events", "legendUpRight", "DATA/MC","results/heppy/top_reco/DATA_MC_cosThetaStar_muon_with_not_region1_postFit.pdf", 0.741288,0.263463, "muon", "Signal");
 
-/*Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[30],
-tInput[28], "boosted_reco_top_mass", 20, 0, 500, "final_natureLepton == 2 && final_region==1 && 0 < boosted_reco_top_mass < 600", "Masse top (GeV)", "number of events", "legendUpRight", "DATA/MC","results/heppy/top_reco/DATA_MC_top_mass_muon_with_not_region1_postFit.pdf", 0.741288,0.263463, "muon","signal");
 Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[30],
+tInput[28], "boosted_reco_top_mass", 20, 0, 500, "final_natureLepton == 2 && final_region==1 && 0 < boosted_reco_top_mass < 600", "Masse top (GeV)", "number of events", "legendUpRight", "DATA/MC","results/heppy/top_reco/DATA_MC_top_mass_muon_with_not_region1_postFit.pdf", 0.741288,0.263463, "muon","signal");
+/*Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[30],
 tInput[28], "final_natureLepton", 1, 2, 2, "final_natureLepton == 2 && final_region==1 && charge_lepton == -1", "nature lepton", "number of events", "legendUpRight", "DATA/MC","results/heppy/top_reco/DATA_MC_number_muon_with_not_region1_postFit.pdf", 0.651319,0.349910);
 
 Stacked_histo_reversed(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[30],
@@ -2330,7 +2448,7 @@ tInput[28], "reco_top_pt", 20, 0, 500, "final_natureLepton == 2 && final_region=
 
 
 //--------------------------- Chi Square--------------------------------------//
-/*
+
 int number_of_bins = 20;
 string variable = "boosted_reco_PhiStar";
 string name_file_plot = "signal_proc_PhiStar_ctwi";
@@ -2339,18 +2457,18 @@ double xmaximum= 6.2831;
 /*string variable = "boosted_reco_cosThetaStar";
 string name_file_plot = "signal_proc_cosThetaStar_cbwi";
 double xminimum =-1;
-double xmaximum= 1;
-
+double xmaximum= 1;*/
+/*
 double syst_lumi = 0.023;
 double syst_singletop = 0.06;
 double syst_ttbar_tw = 0.02;
 double syst_w_z_gamma = 0.08;
 double syst_QCD = 0.10;
 
-
+*/
 double stat = normalizeWithChi(tInput[0], tInput[1], tInput[2], tInput[3], tInput[4], tInput[5], tInput[6], tInput[7], tInput[8], tInput[29], tInput[30],
-tInput[28],variable,number_of_bins,xminimum,xmaximum,"final_region==1",0.800042, 0.201963, 0.741288,0.262616,1.0, 1.0, 1.0, 1.0, 1.0, name_file_plot, "ratio","#Chi^{2}");
-
+tInput[28],variable,number_of_bins,xminimum,xmaximum,"final_region==1",0.800042, 0.201963, 0.741288,0.262616, 1.0, 1.0, 1.0, 1.0, 1.0, name_file_plot, "cos(#theta^{*})","number of events","results/heppy/DATA_MC_signal_EFT_PhiStar.pdf", "signal" );
+/*
 double statsyst1[5];
 double statsyst2[5];
 
